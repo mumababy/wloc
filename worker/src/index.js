@@ -2,7 +2,9 @@ import { Hono } from "hono/tiny";
 import { getPageHtml } from "./page.js";
 import { parseCoords, gcj02ToWgs84, round6 } from "./parse.js";
 
+
 const app = new Hono();
+
 
 
 /*
@@ -13,69 +15,154 @@ app.get("/", (c) => {
 });
 
 
+
 /*
- * Shadowrocket 模块下载
- *
+ * Shadowrocket 模块
+
  * 地址:
  * https://wloc.openstack.kdns.fr/wloc.module
  */
 app.get("/wloc.module", (c) => {
 
+
   const module = `#!name=以色列野小子虚拟定位
-#!desc=WLOC 虚拟定位模块
-#!author=yiselieyexiaozi
+#!desc=WLOC虚拟定位模块
+#!author=以色列野小子
 
 [MITM]
 hostname = %APPEND% gs-loc.apple.com, gs-loc-cn.apple.com
 
 [Script]
+http-response ^https:\\/\\/gs-loc.* script-path=https://wloc.openstack.kdns.fr/wloc.js,requires-body=true
 
 `;
 
-  return c.text(module, 200, {
-    "Content-Type": "text/plain; charset=utf-8"
+
+  return c.text(module,200,{
+    "Content-Type":"text/plain;charset=utf-8"
   });
+
+
 });
 
 
 
+
+
 /*
- * Map link parsing
- *
+ * Shadowrocket JS脚本
+
+ * 地址:
+ * https://wloc.openstack.kdns.fr/wloc.js
+ */
+app.get("/wloc.js",(c)=>{
+
+
+const js = `
+// 以色列野小子虚拟定位
+// WLOC Shadowrocket Script
+
+
+let body = $response.body;
+
+
+try {
+
+
+ let obj = JSON.parse(body);
+
+
+
+ /*
+  * 默认测试坐标
+  *
+  * 北京
+  *
+  */
+
+ if(obj.location){
+
+
+    obj.location.latitude = 40.067963;
+
+    obj.location.longitude = 116.555886;
+
+
+ }
+
+
+ body = JSON.stringify(obj);
+
+
+
+}
+catch(e){
+
+ console.log(e);
+
+}
+
+
+
+$done({
+ body: body
+});
+
+`;
+
+
+
+return c.text(js,200,{
+ "Content-Type":"application/javascript;charset=utf-8"
+});
+
+
+});
+
+
+
+
+
+
+/*
+ * 地图链接解析
+
  * GET:
- * /api/parse?u=<link>&format=json&cs=<gcj|none>
- *
- * Returns:
- * {
- *   lat,
- *   lon,
- *   name
- * }
+ * /api/parse?u=<link>&format=json
  */
 app.get("/api/parse", async (c) => {
 
+
   const raw = c.req.query("u") || "";
-  const cs = (c.req.query("cs") || "").toLowerCase();
-  const fmt = (c.req.query("format") || "").toLowerCase();
+
+  const cs =
+    (c.req.query("cs") || "")
+    .toLowerCase();
+
+
+  const fmt =
+    (c.req.query("format") || "")
+    .toLowerCase();
+
 
 
   try {
+
 
     let {
       lat,
       lon,
       name,
       src
+
     } = await parseCoords(raw);
 
 
 
     /*
-     * 坐标转换
-     *
-     * 高德 / Apple 中国区默认 GCJ02
-     * 转 WGS84
+     * GCJ02 转 WGS84
      */
+
     const needConv =
       cs === "gcj" ||
       (
@@ -87,19 +174,26 @@ app.get("/api/parse", async (c) => {
       );
 
 
-    if (needConv) {
+
+    if(needConv){
+
       ({
         lat,
         lon
-      } = gcj02ToWgs84(lat, lon));
+      } = gcj02ToWgs84(lat,lon));
+
+
     }
 
 
 
     lat = round6(lat);
+
     lon = round6(lon);
 
+
     name = name || "";
+
 
 
     c.header(
@@ -108,15 +202,21 @@ app.get("/api/parse", async (c) => {
     );
 
 
-    if (fmt === "json") {
+
+    if(fmt === "json"){
+
 
       return c.json({
+
         lat,
         lon,
         name
+
       });
 
+
     }
+
 
 
     return c.text(
@@ -124,7 +224,11 @@ app.get("/api/parse", async (c) => {
     );
 
 
-  } catch (e) {
+
+
+  }
+  catch(e){
+
 
     c.header(
       "Access-Control-Allow-Origin",
@@ -132,36 +236,47 @@ app.get("/api/parse", async (c) => {
     );
 
 
-    return c.json(
-      {
-        error: String(
-          e && e.message
-            ? e.message
-            : e
-        )
-      },
-      422
-    );
+    return c.json({
+
+      error:String(
+        e && e.message
+        ? e.message
+        : e
+      )
+
+    },422);
+
 
   }
 
+
+
 });
+
+
+
 
 
 
 /*
- * 全局错误处理
+ * 错误处理
  */
-app.onError((e, c) => {
 
-  console.error(`${e}`);
+app.onError((e,c)=>{
 
-  return c.text(
-    `${e}`,
-    500
-  );
+
+ console.error(`${e}`);
+
+
+ return c.text(
+   `${e}`,
+   500
+ );
+
 
 });
+
+
 
 
 export default app;
