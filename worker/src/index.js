@@ -11,8 +11,14 @@ const app = new Hono();
  * 首页
  */
 app.get("/", (c) => {
-  return c.html(getPageHtml());
+
+  return c.html(
+    getPageHtml()
+  );
+
 });
+
+
 
 
 
@@ -25,12 +31,14 @@ app.get("/", (c) => {
 app.get("/wloc.module", (c) => {
 
 
-  const module = `#!name=以色列野小子虚拟定位
-#!desc=WLOC虚拟定位模块
+const module = `#!name=以色列野小子虚拟定位
+#!desc=WLOC固定虚拟定位
 #!author=以色列野小子
+
 
 [MITM]
 hostname = %APPEND% gs-loc.apple.com, gs-loc-cn.apple.com
+
 
 [Script]
 http-response ^https:\\/\\/gs-loc.* script-path=https://wloc.openstack.kdns.fr/wloc.js,requires-body=true
@@ -38,12 +46,26 @@ http-response ^https:\\/\\/gs-loc.* script-path=https://wloc.openstack.kdns.fr/w
 `;
 
 
-  return c.text(module,200,{
-    "Content-Type":"text/plain;charset=utf-8"
-  });
+
+return new Response(module,{
+
+status:200,
+
+headers:{
+
+"Content-Type":"text/plain",
+
+"Content-Disposition":"attachment; filename=wloc.module"
+
+}
+
+});
 
 
 });
+
+
+
 
 
 
@@ -60,7 +82,7 @@ app.get("/wloc.js",(c)=>{
 
 const js = `
 // 以色列野小子虚拟定位
-// WLOC Shadowrocket Script
+// WLOC Script
 
 
 let body = $response.body;
@@ -69,55 +91,72 @@ let body = $response.body;
 try {
 
 
- let obj = JSON.parse(body);
+let obj = JSON.parse(body);
 
 
 
- /*
-  * 默认测试坐标
-  *
-  * 北京
-  *
-  */
+if(obj.location){
 
- if(obj.location){
+
+    // 固定位置
+    // 40.067963 116.555886
 
 
     obj.location.latitude = 40.067963;
 
+
     obj.location.longitude = 116.555886;
 
 
- }
+}
 
 
- body = JSON.stringify(obj);
+
+body = JSON.stringify(obj);
 
 
 
 }
 catch(e){
 
- console.log(e);
+
+console.log(e);
+
 
 }
 
 
 
+
 $done({
- body: body
+
+body:body
+
 });
+
 
 `;
 
 
 
-return c.text(js,200,{
- "Content-Type":"application/javascript;charset=utf-8"
+return new Response(js,{
+
+status:200,
+
+headers:{
+
+"Content-Type":"application/javascript"
+
+}
+
 });
 
 
 });
+
+
+
+
 
 
 
@@ -125,133 +164,188 @@ return c.text(js,200,{
 
 
 /*
- * 地图链接解析
+ * 坐标解析接口
 
- * GET:
- * /api/parse?u=<link>&format=json
+ * /api/parse?u=xxx&format=json
  */
-app.get("/api/parse", async (c) => {
+app.get("/api/parse", async (c)=>{
 
 
-  const raw = c.req.query("u") || "";
-
-  const cs =
-    (c.req.query("cs") || "")
-    .toLowerCase();
+const raw =
+c.req.query("u") || "";
 
 
-  const fmt =
-    (c.req.query("format") || "")
-    .toLowerCase();
+const cs =
+(c.req.query("cs") || "")
+.toLowerCase();
 
 
 
-  try {
-
-
-    let {
-      lat,
-      lon,
-      name,
-      src
-
-    } = await parseCoords(raw);
-
-
-
-    /*
-     * GCJ02 转 WGS84
-     */
-
-    const needConv =
-      cs === "gcj" ||
-      (
-        cs !== "none" &&
-        (
-          src === "amap" ||
-          src === "apple"
-        )
-      );
-
-
-
-    if(needConv){
-
-      ({
-        lat,
-        lon
-      } = gcj02ToWgs84(lat,lon));
-
-
-    }
-
-
-
-    lat = round6(lat);
-
-    lon = round6(lon);
-
-
-    name = name || "";
-
-
-
-    c.header(
-      "Access-Control-Allow-Origin",
-      "*"
-    );
-
-
-
-    if(fmt === "json"){
-
-
-      return c.json({
-
-        lat,
-        lon,
-        name
-
-      });
-
-
-    }
-
-
-
-    return c.text(
-      `lat=${lat}&lon=${lon}`
-    );
+const fmt =
+(c.req.query("format") || "")
+.toLowerCase();
 
 
 
 
-  }
-  catch(e){
+try{
 
 
-    c.header(
-      "Access-Control-Allow-Origin",
-      "*"
-    );
+let {
+
+lat,
+
+lon,
+
+name,
+
+src
 
 
-    return c.json({
-
-      error:String(
-        e && e.message
-        ? e.message
-        : e
-      )
-
-    },422);
+} = await parseCoords(raw);
 
 
-  }
+
+
+
+const needConv =
+
+cs === "gcj"
+
+||
+
+(
+
+cs !== "none"
+
+&&
+
+(
+
+src === "amap"
+
+||
+
+src === "apple"
+
+)
+
+);
+
+
+
+
+
+if(needConv){
+
+
+({
+
+lat,
+
+lon
+
+}
+
+=
+
+gcj02ToWgs84(
+lat,
+lon
+));
+
+
+}
+
+
+
+
+
+lat = round6(lat);
+
+lon = round6(lon);
+
+
+name = name || "";
+
+
+
+c.header(
+"Access-Control-Allow-Origin",
+"*"
+);
+
+
+
+
+if(fmt === "json"){
+
+
+return c.json({
+
+lat,
+
+lon,
+
+name
+
+});
+
+
+}
+
+
+
+
+
+return c.text(
+
+`lat=${lat}&lon=${lon}`
+
+);
+
+
+
+
+
+}
+catch(e){
+
+
+
+c.header(
+"Access-Control-Allow-Origin",
+"*"
+);
+
+
+
+return c.json({
+
+error:String(
+
+e && e.message
+
+?
+
+e.message
+
+:
+
+e
+
+)
+
+},422);
+
+
+
+}
 
 
 
 });
+
 
 
 
@@ -261,20 +355,23 @@ app.get("/api/parse", async (c) => {
 /*
  * 错误处理
  */
-
 app.onError((e,c)=>{
 
 
- console.error(`${e}`);
+console.error(e);
 
 
- return c.text(
-   `${e}`,
-   500
- );
+return c.text(
+
+String(e),
+
+500
+
+);
 
 
 });
+
 
 
 
